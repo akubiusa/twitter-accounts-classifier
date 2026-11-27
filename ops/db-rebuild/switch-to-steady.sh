@@ -24,7 +24,12 @@ if [ "$current" != "minimal" ]; then
 fi
 
 psql_c 'CHECKPOINT' >/dev/null
-DB_PROFILE=steady docker compose -f "$DIR/compose.new-db.yaml" up -d --force-recreate --wait
+# APP_NETWORK があるときは override を重ね、作り直してもアプリのネットワークから外れないようにする。
+compose_files=(-f "$DIR/compose.new-db.yaml")
+if [ -n "${APP_NETWORK:-}" ]; then
+    compose_files+=(-f "$DIR/compose.app-network.yaml")
+fi
+DB_PROFILE=steady docker compose "${compose_files[@]}" up -d --force-recreate --wait
 
 wal_level="$(psql_c 'SHOW wal_level')"
 archive_mode="$(psql_c 'SHOW archive_mode')"
