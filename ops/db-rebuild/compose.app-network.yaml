@@ -1,0 +1,14 @@
+# 新 DB のコンテナをアプリのネットワークへ常に繋ぐ override。
+# `-f compose.new-db.yaml -f compose.app-network.yaml` の順で重ね、APP_NETWORK にアプリのネットワーク名を渡す。
+# 外部ネットワークを compose 側で宣言しておくと、`up --force-recreate` でコンテナを作り直しても接続が外れない。
+# ネットワークが存在しないと up が失敗するため、アプリの compose を一度も起動していない環境では重ねない。
+services:
+  postgres:
+    networks:
+      - default
+      - app
+
+networks:
+  app:
+    external: true
+    name: ${APP_NETWORK:?APP_NETWORK must be the app compose network name}
