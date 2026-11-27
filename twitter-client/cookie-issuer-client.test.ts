@@ -191,6 +191,74 @@ describe('createCookieIssuerClient', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(3)
   })
 
+  it('接続失敗 (fetch failed) は指数 backoff で再試行して成功する', async () => {
+    const networkError = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:7006'), {
+        code: 'ECONNREFUSED',
+      }),
+    })
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce(networkError)
+      .mockRejectedValueOnce(networkError)
+      .mockResolvedValueOnce(jsonResponse({ status: 'ok', ct0: 'c0', auth_token: 'a0' }))
+    const sleepImpl = vi.fn().mockResolvedValue(undefined)
+    const client = createCookieIssuerClient({
+      baseUrl: 'http://issuer.local',
+      fetchImpl,
+      sleepImpl,
+    })
+
+    const cookies = await client.issueCookiesWithRetry(
+      { username: 'x', password: 'y', otp_secret: null },
+      { networkDelayMs: 10 },
+    )
+
+    expect(cookies).toEqual({ ct0: 'c0', authToken: 'a0' })
+    expect(sleepImpl.mock.calls).toEqual([[10], [20]])
+  })
+
+  it('接続失敗が続く場合は上限回数で元のエラーを投げる', async () => {
+    const networkError = new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED' } })
+    const fetchImpl = vi.fn().mockRejectedValue(networkError)
+    const sleepImpl = vi.fn().mockResolvedValue(undefined)
+    const client = createCookieIssuerClient({
+      baseUrl: 'http://issuer.local',
+      fetchImpl,
+      sleepImpl,
+    })
+
+    const error = await client
+      .issueCookiesWithRetry(
+        { username: 'x', password: 'y', otp_secret: null },
+        { networkMaxAttempts: 3, networkDelayMs: 10 },
+      )
+      .catch((error_: unknown) => error_)
+
+    expect(error).toBe(networkError)
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(sleepImpl.mock.calls).toEqual([[10], [20]])
+  })
+
+  it('送信後の切断 (ECONNRESET) は二重ログインを避けるため再試行しない', async () => {
+    const resetError = new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } })
+    const fetchImpl = vi.fn().mockRejectedValue(resetError)
+    const sleepImpl = vi.fn().mockResolvedValue(undefined)
+    const client = createCookieIssuerClient({
+      baseUrl: 'http://issuer.local',
+      fetchImpl,
+      sleepImpl,
+    })
+
+    const error = await client
+      .issueCookiesWithRetry({ username: 'x', password: 'y', otp_secret: null })
+      .catch((error_: unknown) => error_)
+
+    expect(error).toBe(resetError)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(sleepImpl).not.toHaveBeenCalled()
+  })
+
   it('確定 invalid (403) の場合は indeterminate 扱いにせず即座に失敗する', async () => {
     const fetchImpl = vi
       .fn()
