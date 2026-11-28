@@ -52,6 +52,25 @@ export interface RetryOptions {
   indeterminateMaxAttempts?: number
   /** 503 indeterminate 再検証の間隔 (ミリ秒)。 */
   indeterminateDelayMs?: number
+  /** cookie-issuer への接続確立に失敗した場合の最大試行回数。 */
+  networkMaxAttempts?: number
+  /** network error 再試行の初回待機 (ミリ秒)。 */
+  networkDelayMs?: number
+}
+
+// リクエスト送信後の切断 (ECONNRESET 等) は含めない。ログイン要求が処理済みの可能性があり、再送すると二重ログインになるため。
+const CONNECT_PHASE_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+])
+
+function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof TypeError) || error.message !== 'fetch failed') return false
+  const code = (error.cause as { code?: unknown } | undefined)?.code
+  return typeof code === 'string' && CONNECT_PHASE_ERROR_CODES.has(code)
 }
 
 function isIndeterminateBody(bodyText: string): boolean {
@@ -113,10 +132,13 @@ export function createCookieIssuerClient(options: CookieIssuerClientOptions) {
     const maxTotalWaitMs = retry.maxTotalWaitMs ?? 150_000
     const indeterminateMaxAttempts = retry.indeterminateMaxAttempts ?? 5
     const indeterminateDelayMs = retry.indeterminateDelayMs ?? 5000
+    const networkMaxAttempts = retry.networkMaxAttempts ?? 4
+    const networkDelayMs = retry.networkDelayMs ?? 2000
 
     let cumulativeWaitMs = 0
     let busyAttempt = 0
     let indeterminateAttempt = 0
+    let networkAttempt = 0
     let lastError: unknown
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -138,6 +160,14 @@ export function createCookieIssuerClient(options: CookieIssuerClientOptions) {
             )
           }
           await sleepImpl(indeterminateDelayMs)
+          attempt--
+          continue
+        }
+
+        if (isNetworkError(error)) {
+          networkAttempt++
+          if (networkAttempt >= networkMaxAttempts) throw error
+          await sleepImpl(networkDelayMs * 2 ** (networkAttempt - 1))
           attempt--
           continue
         }
