@@ -7,6 +7,7 @@ DB 作り直しで使う新しい postgres コンテナの定義と運用スク�
 | ファイル | 内容 |
 | --- | --- |
 | `compose.new-db.yaml` | postgres コンテナの定義。`DB_PROFILE` で設定プロファイルを選ぶ |
+| `compose.app-network.yaml` | 新 DB をアプリのネットワーク (`APP_NETWORK`) へ繋ぐ override。コンテナを作り直しても接続が外れない。旧 DB が稼働してアプリが `postgres` を使う間は重ねない |
 | `conf/postgresql.conf` | 共通設定 (メモリ、autovacuum、`pg_stat_statements`、`track_io_timing`) |
 | `conf/profile-bulk.conf` | 一括投入プロファイル (`wal_level=minimal`、`max_wal_senders=0`、`archive_mode=off`) |
 | `conf/profile-steady.conf` | 定常運用プロファイル (`wal_level=replica`、`archive_mode=on`) |
