@@ -234,16 +234,7 @@ new_q() { new_psql -At -c "$1" </dev/null; }
 new_db_compose() { # profile args...
     local profile="$1"
     shift
-    local net files=(-f "$RB_DIR/compose.new-db.yaml")
-    net="$(app_network 2>/dev/null || true)"
-    if [ -z "$net" ]; then
-        log "WARNING: app network not found; the new DB container will not stay attached to it after a recreate"
-    elif docker network inspect "$net" >/dev/null 2>&1; then
-        files+=(-f "$RB_DIR/compose.app-network.yaml")
-    else
-        log "WARNING: app network $net does not exist yet; starting the new DB without the app-network override"
-    fi
-    DB_PROFILE="$profile" APP_NETWORK="$net" docker compose "${files[@]}" "$@"
+    DB_PROFILE="$profile" docker compose -f "$RB_DIR/compose.new-db.yaml" "$@"
 }
 
 # 新 DB コンテナを、アプリのコンテナと同じネットワークへ繋ぐ。コンテナを作り直すと外れるため、作り直した後は再実行する。

@@ -24,10 +24,12 @@ if [ "$current" != "minimal" ]; then
 fi
 
 psql_c 'CHECKPOINT' >/dev/null
-# APP_NETWORK があるときは override を重ね、作り直してもアプリのネットワークから外れないようにする。
+# override を常に重ねないのは、旧 DB が稼働中のネットワークへ繋ぐと postgres の名前が新旧の DB に解決されるため。APP_NETWORK を渡したときだけ重ねる。
 compose_files=(-f "$DIR/compose.new-db.yaml")
 if [ -n "${APP_NETWORK:-}" ]; then
     compose_files+=(-f "$DIR/compose.app-network.yaml")
+else
+    echo "WARNING: APP_NETWORK is not set; the new DB container will leave the app network after the recreate" >&2
 fi
 DB_PROFILE=steady docker compose "${compose_files[@]}" up -d --force-recreate --wait
 

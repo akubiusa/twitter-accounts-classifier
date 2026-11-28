@@ -67,6 +67,13 @@ for svc in viewer crawler relabeler analyzer storage-guard blocker; do
     stop_service "$svc"
 done
 [ "$DRY_RUN" = 1 ] || ! svc_running blocker || die "blocker is running"
+# compose.app-network.yaml で繋いだ新 DB は、アプリのネットワークで postgres の名前にも答える。旧 DB へ戻す前に外す。
+net="$(app_network 2>/dev/null || true)"
+if [ -z "$net" ]; then
+    warn "could not determine the app network; if $NEW_CONTAINER was attached by compose.app-network.yaml, run docker network disconnect <network> $NEW_CONTAINER before relying on the postgres host"
+elif [ "$DRY_RUN" = 1 ] || docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$NEW_CONTAINER" | tr ' ' '\n' | grep -qx "$net"; then
+    run docker network disconnect "$net" "$NEW_CONTAINER" || warn "could not disconnect $NEW_CONTAINER from $net; disconnect it by hand before relying on the postgres host"
+fi
 
 banner "3. old DB: confirm unchanged, then allow writes again"
 if [ "$DRY_RUN" != 1 ]; then

@@ -2,6 +2,7 @@
 # `-f compose.new-db.yaml -f compose.app-network.yaml` の順で重ね、APP_NETWORK にアプリのネットワーク名を渡す。
 # 外部ネットワークを compose 側で宣言しておくと、`up --force-recreate` でコンテナを作り直しても接続が外れない。
 # ネットワークが存在しないと up が失敗するため、アプリの compose を一度も起動していない環境では重ねない。
+# compose はサービス名 postgres をこのネットワークの別名にするため、旧 DB が稼働してアプリが postgres を使う間は重ねない。
 services:
   postgres:
     networks:

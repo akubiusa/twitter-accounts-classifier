@@ -159,7 +159,10 @@ phase_steady() {
     local wal
     wal="$(new_q 'SHOW wal_level')"
     [ "$wal" = minimal ] || die "wal_level is '$wal', but switch-to-steady.sh needs 'minimal'. If an earlier run restarted the DB but failed later, take the base backup by hand (see CUTOVER.md)"
-    phase "steady: switch-to-steady.sh" env APP_NETWORK="$(app_network)" "$RB_DIR/switch-to-steady.sh"
+    local net
+    net="$(app_network)"
+    [ -n "$net" ] || die "could not determine the app network (set APP_NETWORK)"
+    phase "steady: switch-to-steady.sh" env APP_NETWORK="$net" "$RB_DIR/switch-to-steady.sh"
     attach_new_db_network
     mark_done steady
 }

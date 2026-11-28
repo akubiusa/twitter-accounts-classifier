@@ -60,7 +60,7 @@ master にマージすると、CI がイメージを公開し、watchtower が�
 
 ### 2.5 新 DB への接続
 
-新 DB は別の compose プロジェクト (`tac-new-db`) のコンテナである。`docker network connect` で、アプリと同じネットワークへ繋ぎ、`DATABASE_URL` のホストをコンテナ名 (`tac-new-postgres`) にする。`switch-to-steady.sh` が新 DB のコンテナを作り直すと接続が外れるため、`switch.sh` が作り直しの後に繋ぎ直す。新 DB のコンテナを自分で作り直した場合は、`APP_NETWORK=<ネットワーク> docker compose -f compose.new-db.yaml -f compose.app-network.yaml up -d` のように `compose.app-network.yaml` を重ねる。重ねずに作り直したときは、`docker network connect <ネットワーク> tac-new-postgres` をやり直す。`switch.sh` が使う `new_db_compose` と、`APP_NETWORK` を設定した `switch-to-steady.sh` は、この override を自動で重ねる。
+新 DB は別の compose プロジェクト (`tac-new-db`) のコンテナである。`docker network connect` で、アプリと同じネットワークへ繋ぎ、`DATABASE_URL` のホストをコンテナ名 (`tac-new-postgres`) にする。`switch-to-steady.sh` が新 DB のコンテナを作り直すと接続が外れるため、`switch.sh` が作り直しの後に繋ぎ直す。新 DB のコンテナを自分で作り直した場合は、`APP_NETWORK=<ネットワーク> docker compose -f compose.new-db.yaml -f compose.app-network.yaml up -d` のように `compose.app-network.yaml` を重ねる。重ねずに作り直したときは、`docker network connect <ネットワーク> tac-new-postgres` をやり直す。`APP_NETWORK` を設定した `switch-to-steady.sh` は、この override を自動で重ねる。override で繋いだ新 DB は、アプリのネットワークで `postgres` の名前にも答える (compose がサービス名を別名にするため)。旧 DB が稼働してアプリが `postgres` を使う間は重ねない。`rollback.sh` は旧 DB へ戻す前に、新 DB をこのネットワークから外す。
 
 `initdb` が作る `pg_hba.conf` は、ローカルとループバックしか許可しない。そのままではアプリのコンテナが接続できないため、`switch.sh roles` が `host <データベース名> crawler,viewer,analyzer samenet scram-sha-256` の行を足して設定を再読み込みする (新 DB が繋がっているサブネットの中で、アプリが使う 3 つのロールだけを、パスワード認証で許可する。所有者ロールはネットワークから接続できない。行はデータディレクトリにあり、ベースバックアップにも入る)。
 
